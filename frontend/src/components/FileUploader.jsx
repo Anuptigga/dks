@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react';
 import './FileUploader.css';
 
-const FileUploader = ({ files, onFileSelect, onRemoveFile, disabled }) => {
+const FileUploader = ({ onFileSelect, disabled }) => {
     const fileInputRef = useRef(null);
     const [dragActive, setDragActive] = useState(false);
 
@@ -41,15 +41,6 @@ const FileUploader = ({ files, onFileSelect, onRemoveFile, disabled }) => {
         fileInputRef.current?.click();
     };
 
-    // Format file size
-    const formatFileSize = (bytes) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    };
-
     return (
         <div className="file-uploader">
             {/* Drop Zone */}
@@ -86,34 +77,6 @@ const FileUploader = ({ files, onFileSelect, onRemoveFile, disabled }) => {
                     </button>
                 </div>
             </div>
-
-            {/* File List */}
-            {files.length > 0 && (
-                <div className="file-list">
-                    <h3>Selected Images ({files.length})</h3>
-                    <div className="file-items">
-                        {files.map((file, index) => (
-                            <div key={index} className="file-item">
-                                <div className="file-info">
-                                    <span className="file-icon">🖼️</span>
-                                    <div className="file-details">
-                                        <p className="file-name">{file.name}</p>
-                                        <p className="file-size">{formatFileSize(file.size)}</p>
-                                    </div>
-                                </div>
-                                <button
-                                    className="remove-button"
-                                    onClick={() => onRemoveFile(index)}
-                                    disabled={disabled}
-                                    aria-label="Remove file"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

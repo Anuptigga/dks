@@ -3,9 +3,26 @@ import { PDFDocument } from 'pdf-lib';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/**
+ * Convert WebP image to PNG using Sharp
+ * @param {string} webpPath - Path to WebP file
+ * @returns {Promise<Buffer>} - PNG image bytes
+ */
+async function convertWebpToPng(webpPath) {
+    try {
+        const pngBuffer = await sharp(webpPath)
+            .png()
+            .toBuffer();
+        return pngBuffer;
+    } catch (error) {
+        throw new Error(`Failed to convert WebP to PNG: ${error.message}`);
+    }
+}
 
 /**
  * Generate a PDF from multiple image files
@@ -25,21 +42,22 @@ export async function generatePdfFromImages(imagePaths) {
         // Process each image
         for (const imagePath of imagePaths) {
             // Read image file
-            const imageBytes = await fs.readFile(imagePath);
+            let imageBytes = await fs.readFile(imagePath);
+            const ext = path.extname(imagePath).toLowerCase();
+
+            // Convert WebP to PNG if necessary
+            if (ext === '.webp') {
+                imageBytes = await convertWebpToPng(imagePath);
+            }
 
             // Embed image based on type
             let image;
-            const ext = path.extname(imagePath).toLowerCase();
 
-            if (ext === '.png') {
+            if (ext === '.png' || ext === '.webp') {
+                // WebP is converted to PNG, so embed as PNG
                 image = await pdfDoc.embedPng(imageBytes);
             } else if (ext === '.jpg' || ext === '.jpeg') {
                 image = await pdfDoc.embedJpg(imageBytes);
-            } else if (ext === '.webp') {
-                // pdf-lib doesn't support WebP directly, so we convert to PNG
-                // For production, use sharp or canvas to convert WebP
-                // For now, we'll throw an error with instructions
-                throw new Error('WebP format requires additional processing. Please convert to JPG or PNG first.');
             } else {
                 throw new Error(`Unsupported image format: ${ext}`);
             }

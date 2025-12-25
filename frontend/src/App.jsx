@@ -1,8 +1,9 @@
 // src/App.jsx - Main React component (Vite)
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 import FileUploader from './components/FileUploader';
+import ImagePreview from './components/ImagePreview';
 import LoadingSpinner from './components/LoadingSpinner';
 import ErrorMessage from './components/ErrorMessage';
 import SuccessMessage from './components/SuccessMessage';
@@ -10,10 +11,20 @@ import SuccessMessage from './components/SuccessMessage';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function App() {
-  const [files, setFiles] = useState([]);
+  const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const photoIdRef = useRef(0); // Counter for unique photo IDs
+
+  // Format file size for display
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes, k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
 
   // Handle file selection
   const handleFileSelect = (selectedFiles) => {
@@ -28,19 +39,42 @@ function App() {
       setTimeout(() => setError(null), 5000);
     }
 
-    setFiles(validFiles);
+    // Create photo objects with previews using counter-based IDs
+    const newPhotos = validFiles.map(file => ({
+      id: `photo_${++photoIdRef.current}`,
+      file,
+      preview: URL.createObjectURL(file),
+      name: file.name,
+      size: formatFileSize(file.size)
+    }));
+
+    setPhotos(prevPhotos => [...prevPhotos, ...newPhotos]);
     setError(null);
     setSuccess(null);
   };
 
-  // Handle file removal
-  const handleRemoveFile = (index) => {
-    setFiles(prevFiles => prevFiles.filter((_, i) => i !== index));
+  // Handle photo removal by ID
+  const handleRemovePhoto = (photoId) => {
+    setPhotos(prevPhotos => {
+      const photo = prevPhotos.find(p => p.id === photoId);
+      if (photo && photo.preview) {
+        URL.revokeObjectURL(photo.preview);
+      }
+      return prevPhotos.filter(p => p.id !== photoId);
+    });
+  };
+
+  // Handle photo reordering
+  const handleReorderPhotos = (sourceIndex, destinationIndex) => {
+    const newPhotos = Array.from(photos);
+    const [movedPhoto] = newPhotos.splice(sourceIndex, 1);
+    newPhotos.splice(destinationIndex, 0, movedPhoto);
+    setPhotos(newPhotos);
   };
 
   // Handle PDF conversion
   const handleConvertToPdf = async () => {
-    if (files.length === 0) {
+    if (photos.length === 0) {
       setError('Please select at least one image');
       return;
     }
@@ -50,10 +84,10 @@ function App() {
     setSuccess(null);
 
     try {
-      // Create FormData
+      // Create FormData with photos in reordered sequence
       const formData = new FormData();
-      files.forEach(file => {
-        formData.append('images', file);
+      photos.forEach(photo => {
+        formData.append('images', photo.file);
       });
 
       // Send request to backend
@@ -82,7 +116,14 @@ function App() {
 
       // Show success message
       setSuccess('PDF generated successfully! Download should start automatically.');
-      setFiles([]); // Clear files after successful conversion
+      
+      // Clean up object URLs and clear photos after successful conversion
+      photos.forEach(photo => {
+        if (photo.preview) {
+          URL.revokeObjectURL(photo.preview);
+        }
+      });
+      setPhotos([]); // Clear photos after successful conversion
 
       // Clear success message after 5 seconds
       setTimeout(() => setSuccess(null), 5000);
@@ -130,21 +171,27 @@ function App() {
           {success && <SuccessMessage message={success} onClose={() => setSuccess(null)} />}
 
           <FileUploader
-            files={files}
-            onFileSelect={handleFileSelect}
-            onRemoveFile={handleRemoveFile}
             disabled={loading}
+            onFileSelect={handleFileSelect}
           />
+
+          {photos.length > 0 && (
+            <ImagePreview
+              photos={photos}
+              onRemovePhoto={handleRemovePhoto}
+              onReorder={handleReorderPhotos}
+            />
+          )}
 
           {loading && <LoadingSpinner />}
 
-          {files.length > 0 && !loading && (
+          {photos.length > 0 && !loading && (
             <button
               className="convert-button"
               onClick={handleConvertToPdf}
               disabled={loading}
             >
-              🔄 Convert to PDF ({files.length} image{files.length !== 1 ? 's' : ''})
+              🔄 Convert to PDF ({photos.length} image{photos.length !== 1 ? 's' : ''})
             </button>
           )}
         </main>
